@@ -1,0 +1,128 @@
+import Cocoa
+import AppKit
+import CoreData
+
+@main
+
+class AppDelegate: NSObject, NSApplicationDelegate, NSTableViewDelegate, NSTableViewDataSource, NSFetchedResultsControllerDelegate {
+    
+    @IBOutlet weak var gestureTableView: NSTableView!
+    @IBOutlet weak var actionTableView: NSTableView!
+    
+    var gestures: [String] = ["Swipe Left", "Swipe Right", "Swipe Down"]
+    var actions: [String] = ["Close App", "Switch to Next App", "Close All Apps"]
+    
+    lazy var fetchedResultsController: NSFetchedResultsController<NSManagedObject> = {
+        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "Gesture")
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        
+        let fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: persistentContainer.viewContext, sectionNameKeyPath: nil, cacheName: nil)
+        fetchedResultsController.delegate = self
+        
+        do {
+            try fetchedResultsController.performFetch()
+        } catch {
+            print("Failed to fetch gestures: \(error)")
+        }
+        
+        return fetchedResultsController
+    }()
+    
+    lazy var persistentContainer: NSPersistentContainer = {
+        let container = NSPersistentContainer(name: "GestureModel")
+        container.loadPersistentStores { (storeDescription, error) in
+            if let error = error as NSError? {
+                fatalError("Failed to load persistent stores: \(error), \(error.userInfo)")
+            }
+        }
+        return container
+    }()
+    
+    func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Set up table views
+        gestureTableView.delegate = self
+        gestureTableView.dataSource = self
+        actionTableView.delegate = self
+        actionTableView.dataSource = self
+        
+        // Show the window.
+        NSApp.mainWindow?.makeKeyAndOrderFront(nil)
+    }
+    
+    @IBAction func handleCreateGestureButton(_ sender: Any) {
+        guard let textField = sender as? NSTextField else {
+            return
+        }
+        
+        guard let entity = NSEntityDescription.entity(forEntityName: "Gesture", in: persistentContainer.viewContext) else {
+            return
+        }
+        
+        let gesture = NSManagedObject(entity: entity, insertInto: persistentContainer.viewContext)
+        gesture.setValue(textField.stringValue, forKey: "name")
+        
+        do {
+            try persistentContainer.viewContext.save()
+        } catch {
+            print("Failed to save gesture: \(error)")
+        }
+    }
+    
+    // MARK: - NSTableViewDelegate
+    
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        guard let tableView = notification.object as? NSTableView else {
+            return
+        }
+        
+        if tableView == gestureTableView {
+            let selectedGestureIndex = gestureTableView.selectedRow
+            if selectedGestureIndex >= 0 && selectedGestureIndex < gestures.count {
+                let selectedGesture = gestures[selectedGestureIndex]
+                print("Selected gesture: \(selectedGesture)")
+            }
+        } else if tableView == actionTableView {
+            let selectedActionIndex = actionTableView.selectedRow
+            if selectedActionIndex >= 0 && selectedActionIndex < actions.count {
+                let selectedAction = actions[selectedActionIndex]
+                print("Selected action: \(selectedAction)")
+            }
+        }
+    }
+    
+    // MARK: - NSTableViewDataSource
+    
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        if tableView == gestureTableView {
+            return gestures.count
+        } else if tableView == actionTableView {
+            return actions.count
+        }
+        return 0
+    }
+    
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard let identifier = tableColumn?.identifier else {
+            return nil
+        }
+        
+        var text = ""
+        
+        if tableView == gestureTableView {
+            if row >= 0 && row < gestures.count {
+                text = gestures[row]
+            }
+        } else if tableView == actionTableView {
+            if row >= 0 && row < actions.count {
+                text = actions[row]
+            }
+        }
+        
+        if let cellView = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+            cellView.textField?.stringValue = text
+            return cellView
+        }
+        
+        return nil
+    }
+}
